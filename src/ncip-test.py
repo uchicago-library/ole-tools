@@ -24,6 +24,9 @@ class NCIPItems:
         self.author = author
         self.title = title
         self.callnumber = callnumber
+        self.accept_status = False
+        self.checkout_status = False
+        self.checkin_status = False
         
     def __repr__(self):
         str = type(self).__name__ + "("
@@ -32,8 +35,9 @@ class NCIPItems:
         str += ")"
         return str
 
-
-def accept_item(svc, ncip_item):
+def accept_item_request(svc, ncip_item):
+    """Return a Request object for a NCIP AcceptItem"""
+    
     accept_template = """<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns:v="http://www.niso.org/2008/ncip" xmlns="http://www.niso.org/2008/ncip" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" v:version="5.6" xsi:schemaLocation="http://www.niso.org/2008/ncip http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd ">
   <AcceptItem>
@@ -71,15 +75,13 @@ def accept_item(svc, ncip_item):
                                         ncip_item.patron_barcode,
                                         ncip_item.author, ncip_item.title,
                                         ncip_item.callnumber)
-    request = urllib.request.Request(svc, method="POST",
-                                     data=accept_msg.encode(encoding="utf-8"))
-    start = time.time()
-    response = urllib.request.urlopen(request)
-    end = time.time()
-    print('Accept item time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, end - start))
-    return response
+    return urllib.request.Request(svc, method="POST",
+                                  headers = {'Content-Type': 'application/xml'},
+                                  data=accept_msg.encode(encoding="utf-8"))
 
-def checkout_item(svc, ncip_item):
+def checkout_item_request(svc, ncip_item):
+    """Return a Request object for a NCIP CheckoutItem"""
+
     checkout_template = """<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns:v="http://www.niso.org/2008/ncip" xmlns="http://www.niso.org/2008/ncip" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" v:version="5.6" xsi:schemaLocation="http://www.niso.org/2008/ncip http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd ">
   <CheckOutItem>
@@ -103,15 +105,13 @@ def checkout_item(svc, ncip_item):
 </NCIPMessage>"""
     checkout_msg = checkout_template.format(ncip_item.patron_barcode,
                                            ncip_item.item_barcode)
-    request = urllib.request.Request(svc, method="POST",
-                                     data=checkout_msg.encode(encoding="utf-8"))
-    start = time.time()
-    response = urllib.request.urlopen(request)
-    end = time.time()
-    print('Checkout item time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, end - start))
-    return response
+    return urllib.request.Request(svc, method="POST",
+                                  headers = {'Content-Type': 'application/xml'},
+                                  data=checkout_msg.encode(encoding="utf-8"))
 
-def checkin_item(svc, ncip_item):
+def checkin_item_request(svc, ncip_item):
+    """Return a Request object for a NCIP CheckinItem"""
+
     checkin_template = """<?xml version = '1.0' encoding='UTF-8'?> <NCIPMessage
 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 version="http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd">
@@ -132,16 +132,19 @@ version="http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd">
  </CheckInItem>
 </NCIPMessage>"""
     checkin_msg = checkin_template.format(ncip_item.item_barcode)
-    request = urllib.request.Request(svc, method="POST",
-                                     data=checkin_msg.encode(encoding="utf-8"))
+    return urllib.request.Request(svc, method="POST",
+                                  headers = {'Content-Type': 'application/xml'},
+                                  data=checkin_msg.encode(encoding="utf-8"))
+
+def make_request(request):
+    """Makes NCIP request, returns response and elapsed time"""
+    
     start = time.time()
     response = urllib.request.urlopen(request)
     end = time.time()
-    print('Checkin item time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, end - start))
-    return response
+    return (response, end - start)
 
-
-"""
+_success_msg = """
 Success:
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <NCIPMessage xmlns="http://www.niso.org/2008/ncip" version="http://www.niso.org/schemas/ncip/v2_0/imp1/xsd/ncip_v2_0.xsd">
@@ -160,7 +163,7 @@ Success:
 </NCIPMessage>
 """
 
-fail = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+_fail_msg = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <NCIPMessage xmlns="http://www.niso.org/2008/ncip" version="http://www.niso.org/schemas/ncip/v2_0/imp1/xsd/ncip_v2_0.xsd">
     <AcceptItemResponse>
         <Problem>
@@ -179,7 +182,6 @@ def check_accept_item(response):
         #    print(h)
         response_body = response.read().decode("utf-8")
         print("response body: " + response_body)
-
 
 def check_ncip_response(response):
     global fail
@@ -200,12 +202,16 @@ def check_ncip_response(response):
     else:
         print("Success!")
         
+    return
+        
 def parse_arguments(arguments):
     """parse command-line arguments and return a Namespace object"""
     
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     #parser.add_argument('infile', help="Input file", type=argparse.FileType('r'))
+    parser.add_argument('patron_barcode',
+                        help="patron barcode to use with NCIP requests")
     parser.add_argument('ncip_service', help="Base URL for NCIP responder")
     parser.add_argument('-n', '--number_items', type=int,
                         help="number of items to create")
@@ -220,26 +226,38 @@ def main(arguments):
     item_list = []
     for i in range(args.number_items):
         item_barcode = 'TST-{0}-{1:0>4}'.format(str(os.getpid()), i)
-        patron_barcode = '6376346'
         title = 'NCIP test record {0}, process {1}'.format(i, str(os.getpid()))
         item = NCIPItems(item_barcode=item_barcode, 
-                         patron_barcode=patron_barcode, 
+                         patron_barcode=args.patron_barcode, 
                          title=title)
         item_list.append(item)
         
     #print(item_list)
     
-    for item in item_list:
-        print("Accept: " + str(item))
-        response = accept_item(args.ncip_service, item)
+    for ncip_item in item_list:
+        print("Accept: " + str(ncip_item))
+        #response = accept_item(args.ncip_service, item)
+        request = accept_item_request(args.ncip_service, ncip_item)
+        response, response_time = make_request(request)
+        print('AcceptItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
         check_ncip_response(response)
+        
+    print("Sleeping...")
+    time.sleep(5)
     for item in item_list:
         print("Checkout: " + item.item_barcode)
-        response = checkout_item(args.ncip_service, item)
+        request = checkout_item_request(args.ncip_service, ncip_item)
+        response, response_time = make_request(request)
+        print('CheckoutItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
         check_ncip_response(response)
+    print("Sleeping...")
+    time.sleep(5)
+        
     for item in item_list:
-        print("Checkin: " + item.item_barcode)
-        response = checkin_item(args.ncip_service, item)
+        print("Checking: " + item.item_barcode)
+        request = checkin_item_request(args.ncip_service, ncip_item)
+        response, response_time = make_request(request)
+        print('CheckinItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
         check_ncip_response(response)
 
 if __name__ == '__main__':
