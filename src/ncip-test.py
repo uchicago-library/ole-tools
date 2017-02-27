@@ -213,6 +213,8 @@ def parse_arguments(arguments):
     parser.add_argument('patron_barcode',
                         help="patron barcode to use with NCIP requests")
     parser.add_argument('ncip_service', help="Base URL for NCIP responder")
+    parser.add_argument('-a', '--accept_items_only', action='store_true',
+                        help='run AcceptItems only')
     parser.add_argument('-n', '--number_items', type=int,
                         help="number of items to create")
     parser.add_argument('-o', '--outfile', help="Output file",
@@ -222,7 +224,8 @@ def parse_arguments(arguments):
 def main(arguments):
     args = parse_arguments(arguments)
     print(args)
-    
+
+    # build item list
     item_list = []
     for i in range(args.number_items):
         item_barcode = 'TST-{0}-{1:0>4}'.format(str(os.getpid()), i)
@@ -233,7 +236,8 @@ def main(arguments):
         item_list.append(item)
         
     #print(item_list)
-    
+
+    # run AcceptItem for all items in list
     for ncip_item in item_list:
         print("Accept: " + str(ncip_item))
         #response = accept_item(args.ncip_service, item)
@@ -241,24 +245,29 @@ def main(arguments):
         response, response_time = make_request(request)
         print('AcceptItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
         check_ncip_response(response)
+        time.sleep(2)
         
-    print("Sleeping...")
-    time.sleep(5)
-    for item in item_list:
-        print("Checkout: " + item.item_barcode)
-        request = checkout_item_request(args.ncip_service, ncip_item)
-        response, response_time = make_request(request)
-        print('CheckoutItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
-        check_ncip_response(response)
-    print("Sleeping...")
-    time.sleep(5)
-        
-    for item in item_list:
-        print("Checking: " + item.item_barcode)
-        request = checkin_item_request(args.ncip_service, ncip_item)
-        response, response_time = make_request(request)
-        print('CheckinItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
-        check_ncip_response(response)
+    if not args.accept_items_only:
+        print("Sleeping...")
+        time.sleep(5)
+        # call CheckoutItem on each item
+        for ncip_item in item_list:
+            print("Checkout: " + ncip_item.item_barcode)
+            request = checkout_item_request(args.ncip_service, ncip_item)
+            response, response_time = make_request(request)
+            print('CheckoutItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
+            check_ncip_response(response)
+            time.sleep(2)
+        print("Sleeping...")
+        time.sleep(5)
+        # call CheckinItem on each item
+        for item in item_list:
+            print("Checking: " + item.item_barcode)
+            request = checkin_item_request(args.ncip_service, ncip_item)
+            response, response_time = make_request(request)
+            print('CheckinItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
+            check_ncip_response(response)
+            time.sleep(2)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
