@@ -176,7 +176,7 @@ _fail_msg = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </NCIPMessage>
 """
 def check_accept_item(response):
-    if response.getcode != 200:
+    if response.getcode() != 200:
         print("response code: " + str(response.getcode()))
         #for h in response.getheaders():
         #    print(h)
@@ -186,9 +186,13 @@ def check_accept_item(response):
 def check_ncip_response(response):
     global fail
     
-    #print("response code: " + str(response.getcode()))
     response_body = response.read().decode("utf-8")
-    #print("response body: " + response_body)
+
+    if response.getcode() != 200:
+        print("Server error: HTTP " + str(response.getcode()))
+        print("response body: " + response_body)
+        return
+    
     ncip_message = ET.fromstring(response_body)
     #ncip_message = ET.fromstring(fail)
     # print("Msg:" + repr(ncip_message))
