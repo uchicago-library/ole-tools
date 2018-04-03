@@ -37,6 +37,8 @@ class NCIPItems:
 
 def accept_item_request(svc, ncip_item):
     """Return a Request object for a NCIP AcceptItem"""
+
+    global args
     
     accept_template = """<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns:v="http://www.niso.org/2008/ncip" xmlns="http://www.niso.org/2008/ncip" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" v:version="5.6" xsi:schemaLocation="http://www.niso.org/2008/ncip http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd ">
@@ -75,6 +77,8 @@ def accept_item_request(svc, ncip_item):
                                         ncip_item.patron_barcode,
                                         ncip_item.author, ncip_item.title,
                                         ncip_item.callnumber)
+    if args.verbose:
+        print(accept_msg)
     return urllib.request.Request(svc, method="POST",
                                   headers = {'Content-Type': 'application/xml'},
                                   data=accept_msg.encode(encoding="utf-8"))
@@ -82,6 +86,8 @@ def accept_item_request(svc, ncip_item):
 def checkout_item_request(svc, ncip_item):
     """Return a Request object for a NCIP CheckoutItem"""
 
+    global args
+    
     checkout_template = """<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns:v="http://www.niso.org/2008/ncip" xmlns="http://www.niso.org/2008/ncip" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" v:version="5.6" xsi:schemaLocation="http://www.niso.org/2008/ncip http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd ">
   <CheckOutItem>
@@ -105,12 +111,16 @@ def checkout_item_request(svc, ncip_item):
 </NCIPMessage>"""
     checkout_msg = checkout_template.format(ncip_item.patron_barcode,
                                            ncip_item.item_barcode)
+    if args.verbose:
+        print(checkout_msg)
     return urllib.request.Request(svc, method="POST",
                                   headers = {'Content-Type': 'application/xml'},
                                   data=checkout_msg.encode(encoding="utf-8"))
 
 def checkin_item_request(svc, ncip_item):
     """Return a Request object for a NCIP CheckinItem"""
+
+    global args
 
     checkin_template = """<?xml version = '1.0' encoding='UTF-8'?> <NCIPMessage
 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -132,6 +142,8 @@ version="http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd">
  </CheckInItem>
 </NCIPMessage>"""
     checkin_msg = checkin_template.format(ncip_item.item_barcode)
+    if args.verbose:
+        print(checkin_msg)
     return urllib.request.Request(svc, method="POST",
                                   headers = {'Content-Type': 'application/xml'},
                                   data=checkin_msg.encode(encoding="utf-8"))
@@ -223,9 +235,12 @@ def parse_arguments(arguments):
                         help="number of items to create")
     parser.add_argument('-o', '--outfile', help="Output file",
                         default=sys.stdout, type=argparse.FileType('w'))
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Verbose mode, print out NCIP request messages')
     return parser.parse_args(arguments)
 
 def main(arguments):
+    global args
     args = parse_arguments(arguments)
     print(args)
 
