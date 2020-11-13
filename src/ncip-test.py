@@ -231,8 +231,8 @@ def parse_arguments(arguments):
     parser.add_argument('ncip_service', help="Base URL for NCIP responder")
     parser.add_argument('-a', '--accept_items_only', action='store_true',
                         help='run AcceptItems only')
-    parser.add_argument('-n', '--number_items', type=int,
-                        help="number of items to create")
+    parser.add_argument('-n', '--number_items', type=int, default=3,
+                        help="number of items to create (default: 3)")
     parser.add_argument('-o', '--outfile', help="Output file",
                         default=sys.stdout, type=argparse.FileType('w'))
     parser.add_argument('-v', '--verbose', action='store_true',
