@@ -35,7 +35,7 @@ class NCIPItems:
         str += ")"
         return str
 
-def accept_item_request(svc, ncip_item):
+def accept_item_request(svc, ncip_agency, ncip_item):
     """Return a Request object for a NCIP AcceptItem"""
 
     global args
@@ -45,35 +45,35 @@ def accept_item_request(svc, ncip_item):
   <AcceptItem>
     <InitiationHeader>
       <FromAgencyId>
-        <AgencyId>BORROWDIRECT</AgencyId>
+        <AgencyId>{0}</AgencyId>
       </FromAgencyId>
       <ToAgencyId>
         <AgencyId>CHICAGO</AgencyId>
       </ToAgencyId>
     </InitiationHeader>
     <RequestId>
-      <RequestIdentifierValue>{0}</RequestIdentifierValue>
+      <RequestIdentifierValue>{1}</RequestIdentifierValue>
     </RequestId>
     <RequestedActionType>Hold For Pickup</RequestedActionType>
     <UserId>
-      <UserIdentifierValue>{1}</UserIdentifierValue>
+      <UserIdentifierValue>{2}</UserIdentifierValue>
     </UserId>
     <ItemId>
-      <ItemIdentifierValue>{0}</ItemIdentifierValue>
+      <ItemIdentifierValue>{1}</ItemIdentifierValue>
     </ItemId>
     <ItemOptionalFields>
       <BibliographicDescription>
-        <Author>{2}</Author>
-        <Title>{3}</Title>
+        <Author>{3}</Author>
+        <Title>{4}</Title>
       </BibliographicDescription>
       <ItemDescription>
-        <CallNumber>{4}</CallNumber>
+        <CallNumber>{5}</CallNumber>
       </ItemDescription>
     </ItemOptionalFields>
     <PickupLocation>JRLMAIN</PickupLocation>
   </AcceptItem>
 </NCIPMessage>"""
-    accept_msg = accept_template.format(ncip_item.item_barcode,
+    accept_msg = accept_template.format(ncip_agency, ncip_item.item_barcode,
                                         ncip_item.patron_barcode,
                                         ncip_item.author, ncip_item.title,
                                         ncip_item.callnumber)
@@ -83,7 +83,7 @@ def accept_item_request(svc, ncip_item):
                                   headers = {'Content-Type': 'application/xml'},
                                   data=accept_msg.encode(encoding="utf-8"))
 
-def checkout_item_request(svc, ncip_item):
+def checkout_item_request(svc, ncip_agency, ncip_item):
     """Return a Request object for a NCIP CheckoutItem"""
 
     global args
@@ -93,31 +93,32 @@ def checkout_item_request(svc, ncip_item):
   <CheckOutItem>
     <InitiationHeader>
       <FromAgencyId>
-        <AgencyId>BORROWDIRECT</AgencyId>
+        <AgencyId>{0}</AgencyId>
       </FromAgencyId>
       <ToAgencyId>
         <AgencyId>University of Chicago</AgencyId>
       </ToAgencyId>
     </InitiationHeader>
     <UserId>
-      <AgencyId>BORROWDIRECT</AgencyId>
-      <UserIdentifierValue>{0}</UserIdentifierValue>
+      <AgencyId>{0}</AgencyId>
+      <UserIdentifierValue>{1}</UserIdentifierValue>
     </UserId>
     <ItemId>
-      <AgencyId>BORROWDIRECT</AgencyId>
-      <ItemIdentifierValue>{1}</ItemIdentifierValue>
+      <AgencyId>{0}</AgencyId>
+      <ItemIdentifierValue>{2}</ItemIdentifierValue>
     </ItemId>
   </CheckOutItem>
 </NCIPMessage>"""
-    checkout_msg = checkout_template.format(ncip_item.patron_barcode,
-                                           ncip_item.item_barcode)
+    checkout_msg = checkout_template.format(ncip_agency,
+                                            ncip_item.patron_barcode,
+                                            ncip_item.item_barcode)
     if args.verbose:
         print(checkout_msg)
     return urllib.request.Request(svc, method="POST",
                                   headers = {'Content-Type': 'application/xml'},
                                   data=checkout_msg.encode(encoding="utf-8"))
 
-def checkin_item_request(svc, ncip_item):
+def checkin_item_request(svc, ncip_agency, ncip_item):
     """Return a Request object for a NCIP CheckinItem"""
 
     global args
@@ -128,20 +129,20 @@ version="http://www.niso.org/schemas/ncip/v2_0/ncip_v2_0.xsd">
  <CheckInItem>
    <InitiationHeader>
      <FromAgencyId>
-       <AgencyId>BORROWDIRECT</AgencyId>
+       <AgencyId>{0}</AgencyId>
      </FromAgencyId>
      <ToAgencyId>
        <AgencyId>CHICAGO</AgencyId>
      </ToAgencyId>
    </InitiationHeader>
    <ItemId>
-     <ItemIdentifierValue>{0}</ItemIdentifierValue>
+     <ItemIdentifierValue>{1}</ItemIdentifierValue>
    </ItemId>
    <ItemElementType>Bibliographic Description</ItemElementType>
    <ItemElementType>Item Description</ItemElementType>
  </CheckInItem>
 </NCIPMessage>"""
-    checkin_msg = checkin_template.format(ncip_item.item_barcode)
+    checkin_msg = checkin_template.format(ncip_agency, ncip_item.item_barcode)
     if args.verbose:
         print(checkin_msg)
     return urllib.request.Request(svc, method="POST",
@@ -228,6 +229,7 @@ def parse_arguments(arguments):
     #parser.add_argument('infile', help="Input file", type=argparse.FileType('r'))
     parser.add_argument('patron_barcode',
                         help="patron barcode to use with NCIP requests")
+    parser.add_argument('ncip_agency', help="NCIP agency making request")
     parser.add_argument('ncip_service', help="Base URL for NCIP responder")
     parser.add_argument('-a', '--accept_items_only', action='store_true',
                         help='run AcceptItems only')
@@ -260,7 +262,7 @@ def main(arguments):
     for ncip_item in item_list:
         print("Accept: " + str(ncip_item))
         #response = accept_item(args.ncip_service, item)
-        request = accept_item_request(args.ncip_service, ncip_item)
+        request = accept_item_request(args.ncip_service, args.ncip_agency, ncip_item)
         response, response_time = make_request(request)
         print('AcceptItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
         check_ncip_response(response)
@@ -272,7 +274,7 @@ def main(arguments):
         # call CheckoutItem on each item
         for ncip_item in item_list:
             print("Checkout: " + ncip_item.item_barcode)
-            request = checkout_item_request(args.ncip_service, ncip_item)
+            request = checkout_item_request(args.ncip_service, args.ncip_agency, ncip_item)
             response, response_time = make_request(request)
             print('CheckoutItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
             check_ncip_response(response)
@@ -282,7 +284,7 @@ def main(arguments):
         # call CheckinItem on each item
         for item in item_list:
             print("Checking: " + item.item_barcode)
-            request = checkin_item_request(args.ncip_service, ncip_item)
+            request = checkin_item_request(args.ncip_service, args.ncip_agency, ncip_item)
             response, response_time = make_request(request)
             print('CheckinItem time for barcode {0}: {1:.2f}'.format(ncip_item.item_barcode, response_time))
             check_ncip_response(response)
