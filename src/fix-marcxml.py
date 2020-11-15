@@ -15,8 +15,11 @@ import string
 import sys
 import time
 import xml.etree.ElementTree as ET
+import xml.sax
+import xml.sax.saxutils
 
 xml_decl = '<?xml version="1.0" encoding="UTF-8"?>'
+marcxml_ns = "http://www.loc.gov/MARC21/slim"
 start_coll = '<collection xmlns="http://www.loc.gov/MARC21/slim">'
 end_coll = '</collection>'
         
@@ -73,6 +76,57 @@ def etree(infile, outfile):
     outfile.write(end_coll + '\n')
     outfile.flush()
 
+class MyXMLGenerator(xml.sax.saxutils.XMLGenerator):
+
+    def __init__(self, out=None, encoding="iso-8859-1", short_empty_elements=False):
+        self.doc_count = 0
+        super().__init__(out, encoding, short_empty_elements)
+
+    def startDocument(self):
+        """Custom startDocument to ensure that only one XML declaration is output.
+        
+        With the base startDocument, a new XML declaration would be output with each line/each new parser.
+        """
+
+        if self.doc_count > 0:
+            pass
+        else:
+            self.doc_count += 1
+            super().startDocument()
+
+    def startElement(self, name, attrs):
+
+        if name == 'collection':
+            pass
+        else:
+            super().startElement(name, attrs)
+
+    def endElement(self, name):
+
+        if name == 'collection':
+            pass
+        else:
+            super().endElement(name)
+
+
+def sax(infile, outfile):
+    """ Fix using xml.sax package.
+
+    Basic strategy is to subclass the stock XMLGenerator and conveniently omit collection.
+    This will have the side-effect of also trimming namespaces.
+    """
+
+    global xml_decl
+    global marcxml_ns
+    global start_coll
+    global end_coll
+
+    #handler = xml.sax.saxutils.XMLGenerator(outfile, encoding='utf-8')
+    handler = MyXMLGenerator(outfile, encoding='utf-8')
+    #sys.exit(0)
+    for line in infile:
+        xml.sax.parseString(line, handler)
+
 def parse_arguments(arguments):
     """parse command-line arguments and return a Namespace object"""
     
@@ -96,6 +150,8 @@ def main(arguments):
         brute_force(args.infile, args.outfile)
     elif args.method == 'etree':
         etree(args.infile, args.outfile)
+    elif args.method == 'sax':
+        sax(args.infile, args.outfile)
     else:
         sys.stderr.write('Invalid method: {}\n'.format(args.method))
         sys.exit(3)
