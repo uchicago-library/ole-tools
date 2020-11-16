@@ -82,6 +82,13 @@ class MyXMLGenerator(xml.sax.saxutils.XMLGenerator):
         self.doc_count = 0
         super().__init__(out, encoding, short_empty_elements)
 
+    def super(self):
+        """provide access to base class methods.
+        
+        Use with caution, this is egregious abuse!"""
+
+        return super()
+
     def startDocument(self):
         """Custom startDocument to ensure that only one XML declaration is output.
         
@@ -97,16 +104,18 @@ class MyXMLGenerator(xml.sax.saxutils.XMLGenerator):
     def startElement(self, name, attrs):
 
         if name == 'collection':
-            pass
-        else:
-            super().startElement(name, attrs)
+            return
+        super().startElement(name, attrs)
 
     def endElement(self, name):
 
         if name == 'collection':
-            pass
-        else:
-            super().endElement(name)
+            return
+
+        super().endElement(name)
+        
+        if name == 'record':
+            self.ignorableWhitespace('\n')
 
 
 def sax(infile, outfile):
@@ -123,9 +132,15 @@ def sax(infile, outfile):
 
     #handler = xml.sax.saxutils.XMLGenerator(outfile, encoding='utf-8')
     handler = MyXMLGenerator(outfile, encoding='utf-8')
+    # call startDocument explicitly, so we control
+    handler.startDocument()
+    handler.super().startElement('collection', {'xmlns':marcxml_ns})
+    handler.ignorableWhitespace('\n')
     #sys.exit(0)
     for line in infile:
         xml.sax.parseString(line, handler)
+    handler.super().endElement('collection')
+    handler.ignorableWhitespace('\n')
 
 def parse_arguments(arguments):
     """parse command-line arguments and return a Namespace object"""
